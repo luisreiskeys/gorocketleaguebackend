@@ -1,0 +1,432 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Tabela base com todos os jogadores do EAFC.
+model Player {
+  /// ID global do jogador no EAFC (ex: 209331).
+  id   Int   @id
+
+  rank Int?
+
+  name   String
+  gender String?
+
+  // Ratings principais
+  ovr Int?
+  pac Int?
+  sho Int?
+  pas Int?
+  dri Int?
+  def Int?
+  phy Int?
+
+  // Atributos detalhados de ataque/defesa
+  acceleration   Int?
+  sprintSpeed    Int?
+  positioning    Int?
+  finishing      Int?
+  shotPower      Int?
+  longShots      Int?
+  volleys        Int?
+  penalties      Int?
+  vision         Int?
+  crossing       Int?
+  freeKickAcc    Int?
+  shortPassing   Int?
+  longPassing    Int?
+  curve          Int?
+  dribbling      Int?
+  agility        Int?
+  balance        Int?
+  reactions      Int?
+  ballControl    Int?
+  composure      Int?
+  interceptions  Int?
+  headingAcc     Int?
+  defAwareness   Int?
+  standingTackle Int?
+  slidingTackle  Int?
+  jumping        Int?
+  stamina        Int?
+  strength       Int?
+  aggression     Int?
+
+  // Metadados de posição e características
+  position    String?
+  weakFoot    Int?
+  skillMoves  Int?
+  preferredFoot String?
+
+  // Valores "brutos" do CSV (mantemos como string para começar)
+  heightRaw String?
+  weightRaw String?
+
+  // Campos que vêm como lista no CSV
+  alternativePositions String[] @default([])
+  playStyle            String[] @default([])
+
+  // Metadados gerais
+  age    Int?
+  nation String?
+  league String?
+  team   String?
+
+  url String?
+
+  // Supply / progresso de descoberta
+  max_supply  Int @default(1000)
+  found_count Int @default(0)
+  /// Versão de progresso desta carta (para sync incremental de found_count)
+  progress_version BigInt @default(0)
+
+  // Atributos de goleiro
+  gkDiving      Int?
+  gkHandling    Int?
+  gkKicking     Int?
+  gkPositioning Int?
+  gkReflexes    Int?
+
+  // Quando aquela carta/linha foi atualizada na base original
+  cardUpdatedAt DateTime? @map("card_updated_at")
+
+  // Auditoria interna da nossa base
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  instances Instance[]
+
+  @@map("players")
+}
+
+/// Controle de versão da base de jogadores.
+/// Sempre que o CSV realmente causar alguma alteração na tabela `players`,
+/// incrementamos essa versão.
+model DatabasePlayersVersion {
+  id        Int      @id @default(1)
+  version   Int      @default(1)
+  note      String?  // opcional: descrição do update (ex: "Import EAFC 26 2026-02-16")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  @@map("database_players_version")
+}
+
+model User {
+  id       String   @id @default(uuid())
+  is_guest Boolean  @default(true) @map("is_guest")
+  firstPack Boolean @default(false) @map("first_pack")
+  lastFreePack DateTime? @map("last_free_pack")
+
+  email       String? @unique
+  provider    String?
+  providerId  String?
+  username    String? @unique
+  avatar      String?
+  avatarId    Int?     @map("avatar_id")
+
+  xp       Int   @default(0)
+  fuel     Float @default(100) @db.DoublePrecision
+  level    Int   @default(1)
+  coverage Int   @default(0)
+
+  lat         Float?  @db.DoublePrecision
+  lng         Float?  @db.DoublePrecision
+  h3UserCell  String? @map("h3_res9")
+  h3RoomCell  String? @map("h3_res8")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  instances     Instance[]
+  tradesInitiated  TradeProposal[] @relation("TradeInitiator")
+  tradesReceived   TradeProposal[] @relation("TradeCounterparty")
+  team          Team?
+  refreshTokens RefreshToken[]
+  cellOwnerships CellOwnership[] @relation("CellOwnershipOwner")
+  wallet         Wallet?
+  coinTransactions CoinTransaction[]
+  battlesChallenged BattleChallenge[] @relation("BattleChallenger")
+  battlesReceived   BattleChallenge[] @relation("BattleChallenged")
+  battlesWon        BattleChallenge[] @relation("BattleWinner")
+  battlesLost       BattleChallenge[] @relation("BattleLoser")
+
+  @@index([h3RoomCell])
+  @@index([h3UserCell])
+  @@index([xp])
+  @@index([level])
+  @@index([createdAt])
+  @@unique([provider, providerId])
+  @@map("users")
+}
+
+/// Refresh token (hash guardado; rotação a cada uso).
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("refresh_tokens")
+}
+
+/// Instância de uma carta no mapa (localização, dono, onde foi encontrada).
+model Instance {
+  id     String @id @default(uuid())
+  cardId Int    @map("card_id")
+  card   Player @relation(fields: [cardId], references: [id])
+  serialNumber Int @map("serial_number")
+  serialMax    Int @map("serial_max")
+
+  latitude  Float @db.DoublePrecision
+  longitude Float @db.DoublePrecision
+  city      String?
+  state     String?
+
+  ownerId String?  @map("owner_id")
+  owner   User?    @relation(fields: [ownerId], references: [id])
+  h3RoomCell String? @map("h3_res8")
+  /// Sala Colyseus que reservou esta instancia no mapa (world_pool). Null = disponivel no pool global.
+  reservedByRoomId String? @map("reserved_by_room_id")
+  spawnSource String? @map("spawn_source")
+
+  foundWhen       DateTime? @map("found_when")
+  foundWhereCity  String?   @map("found_where_city")
+  foundWhereState String?   @map("found_where_state")
+  foundWhereLat   Float?    @map("found_where_lat") @db.DoublePrecision
+  foundWhereLng   Float?    @map("found_where_lng") @db.DoublePrecision
+
+  spawnedAt DateTime @default(now()) @map("spawned_at")
+  updatedAt DateTime @updatedAt       @map("updated_at")
+
+  @@index([h3RoomCell, ownerId, foundWhen])
+  @@index([spawnSource, ownerId, foundWhen])
+  @@index([reservedByRoomId])
+  @@index([ownerId])
+  @@unique([cardId, serialNumber])
+  teamSlot TeamSlot?
+  tradeProposalItems TradeProposalItem[]
+  rewardFromBattles BattleChallenge[]
+
+  @@map("instances")
+}
+
+/// Proposta de troca entre dois usuários (N↔M instâncias).
+enum TradeProposalStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+/// Lado da troca: o que o iniciador envia vs o que pede ao outro usuário.
+enum TradeItemSide {
+  FROM_INITIATOR
+  FROM_COUNTERPARTY
+}
+
+model TradeProposal {
+  id             String   @id @default(uuid())
+  initiatorId    String   @map("initiator_id")
+  initiator      User     @relation("TradeInitiator", fields: [initiatorId], references: [id], onDelete: Cascade)
+  counterpartyId String   @map("counterparty_id")
+  counterparty   User     @relation("TradeCounterparty", fields: [counterpartyId], references: [id], onDelete: Cascade)
+  status         TradeProposalStatus @default(PENDING)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  items TradeProposalItem[]
+
+  @@index([initiatorId, status])
+  @@index([counterpartyId, status])
+  @@map("trade_proposals")
+}
+
+model TradeProposalItem {
+  id         String   @id @default(uuid())
+  proposalId String   @map("proposal_id")
+  proposal   TradeProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  instanceId String   @map("instance_id")
+  instance   Instance @relation(fields: [instanceId], references: [id], onDelete: Restrict)
+  side       TradeItemSide @map("side")
+
+  @@unique([proposalId, instanceId])
+  @@index([instanceId])
+  @@map("trade_proposal_items")
+}
+
+/// Time do usuário: exatamente 5 instâncias (cartas); overall derivado das cartas + bônus de nacionalidade.
+model Team {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String   @default("Meu Time")
+  /// Overall calculado (soma dos OVR + bônus por nacionalidade); cache para leitura rápida.
+  overall   Int      @default(0)
+  /// Posição no ranking global (1 = primeiro). Null até existir job/lista de partidas.
+  globalRank Int?    @map("global_rank")
+  wins      Int      @default(0)
+  losses    Int      @default(0)
+  /// Escudo do time (índice 1…N em `data/team_shields`, mesma ideia que `User.avatar_id`).
+  shieldId  Int?     @map("shield_id")
+  /// Indica se o time está aceitando desafios públicos por moedas.
+  openForBattle Boolean @default(false) @map("open_for_battle")
+  /// Faixa de stake escolhida quando `openForBattle=true` (usa BattleStakeTier).
+  openBattleStakeTier BattleStakeTier? @map("open_battle_stake_tier")
+  /// Se definido, após batalhas o backend desliga `openForBattle` quando `wallet.balance` ficar abaixo deste valor.
+  openBattleMinBalance Int? @map("open_battle_min_balance")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  slots TeamSlot[]
+
+  @@index([globalRank])
+  @@index([wins, losses])
+  @@index([openForBattle])
+  @@map("teams")
+}
+
+/// Uma posição no time (0–4). Cada instância pode estar em no máximo um time.
+model TeamSlot {
+  id         String @id @default(uuid())
+  teamId     String @map("team_id")
+  team       Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  slotIndex  Int    @map("slot_index")
+  instanceId String @unique @map("instance_id")
+  instance   Instance @relation(fields: [instanceId], references: [id], onDelete: Restrict)
+
+  @@unique([teamId, slotIndex])
+  @@map("team_slots")
+}
+
+/// Ownership de células H3 (flag/captura) com suporte a compactação hierárquica.
+model CellOwnership {
+  id String @id @default(uuid())
+
+  h3Index String @unique @map("h3_index") @db.VarChar(20)
+  resolution Int
+
+  ownerUserId String @map("owner_user_id")
+  owner User @relation("CellOwnershipOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([ownerUserId])
+  @@index([resolution])
+
+  @@map("cell_ownership")
+}
+
+/// Tipos de movimento na carteira (ledger). O campo `amount` em `CoinTransaction`
+/// é positivo para crédito e negativo para débito; combine com o tipo para relatórios.
+enum CoinTransactionType {
+  RECHARGE
+  AD_REWARD
+  DAILY_BONUS
+  ROOM_PICKUP
+  PURCHASE
+  BATTLE_STAKE
+  BATTLE_WIN_POT
+  BATTLE_STAKE_REFUND
+  ADMIN_CREDIT
+  ADMIN_DEBIT
+  REFUND
+}
+
+enum BattleChallengeStatus {
+  PENDING
+  RESOLVED
+  DECLINED
+  CANCELLED
+  EXPIRED
+}
+
+enum BattleStakeTier {
+  COINS_10
+  COINS_50
+  COINS_100
+  COINS_1000
+}
+
+/// Saldo de coins (1:1 com User). Atualizado apenas via `coinService` + transação DB.
+model Wallet {
+  userId String @id @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  balance Int @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("wallets")
+}
+
+/// Histórico imutável; idempotência por (userId, idempotencyKey) quando a key é enviada.
+model CoinTransaction {
+  id     String @id @default(uuid())
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type         CoinTransactionType
+  /// Crédito > 0, débito < 0.
+  amount       Int
+  balanceAfter Int @map("balance_after")
+
+  idempotencyKey String? @map("idempotency_key")
+  externalRef    String? @map("external_ref")
+  metadata       Json?
+  colyseusRoomId String? @map("colyseus_room_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@map("coin_transactions")
+}
+
+/// Desafio assíncrono entre times com stake de moedas e snapshot no momento da criação.
+model BattleChallenge {
+  id String @id @default(uuid())
+
+  challengerId String @map("challenger_id")
+  challenger   User   @relation("BattleChallenger", fields: [challengerId], references: [id], onDelete: Cascade)
+
+  challengedId String @map("challenged_id")
+  challenged   User   @relation("BattleChallenged", fields: [challengedId], references: [id], onDelete: Cascade)
+
+  status     BattleChallengeStatus @default(PENDING)
+  stakeTier  BattleStakeTier       @map("stake_tier")
+  stakeCoins Int                   @map("stake_coins")
+
+  challengerSnapshot Json @map("challenger_snapshot")
+  challengedSnapshot Json @map("challenged_snapshot")
+
+  winnerId String? @map("winner_id")
+  winner   User?   @relation("BattleWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  loserId  String? @map("loser_id")
+  loser    User?   @relation("BattleLoser", fields: [loserId], references: [id], onDelete: SetNull)
+
+  rewardCardInstanceId String? @map("reward_card_instance_id")
+  rewardCardInstance   Instance? @relation(fields: [rewardCardInstanceId], references: [id], onDelete: SetNull)
+
+  expiresAt  DateTime @map("expires_at")
+  acceptedAt DateTime? @map("accepted_at")
+  resolvedAt DateTime? @map("resolved_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([challengerId, status, createdAt])
+  @@index([challengedId, status, createdAt])
+  @@index([status, expiresAt])
+  @@map("battle_challenges")
+}
+

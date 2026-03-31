@@ -1,0 +1,33 @@
+{
+  "name": "grl-backend",
+  "version": "1.0.0",
+  "description": "Backend do projeto Go Rocket League",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "prisma:db-push": "prisma db push",
+    "prisma:generate": "prisma generate",
+    "postinstall": "prisma generate",
+    "fetch-player-photos": "node scripts/fetch-player-photos.js",
+    "fetch-player-photos-from-csv": "node scripts/fetch-player-photos-from-csv.js",
+    "players:rebuild-found-count": "node scripts/rebuild-players-found-count.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "fastify": "*",
+    "@fastify/jwt": "^9.0.1",
+    "@fastify/multipart": "*",
+    "@fastify/static": "*",
+    "@prisma/client": "7.4.0",
+    "prisma": "7.4.0",
+    "@prisma/adapter-pg": "7.4.0",
+    "pg": "^8.13.0",
+    "csv-parse": "*",
+    "h3-js": "^4.4.0",
+    "colyseus": "^0.17.0",
+    "@colyseus/schema": "^4.0.4",
+    "@colyseus/ws-transport": "^0.17.0",
+    "google-auth-library": "^9.0.0",
+    "jose": "^5.9.6"
+  }
+}
