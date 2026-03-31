@@ -64,28 +64,6 @@ O `docker-compose.yml` espera os arquivos abaixo em `./secrets/`:
 
 Sem esses secrets o container do backend não sobe corretamente.
 
-## Banco de dados (Prisma)
-
-Este projeto usa `db push` (não migration) no fluxo atual.
-
-Guia completo: [`../PRISMA_DB_PUSH.md`](../PRISMA_DB_PUSH.md)
-
-Comando padrão (na raiz do projeto):
-
-```bash
-docker compose exec backend sh -lc '
-  export DB_USER="$(cat /run/secrets/db_user)"
-  export DB_PASS="$(cat /run/secrets/db_password)"
-  export DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@postgres:5432/appdb"
-  npx prisma db push
-'
-```
-
-Opcional: regenerar client Prisma:
-
-```bash
-docker compose exec backend sh -lc 'npx prisma generate'
-```
 
 ## Principais variáveis de ambiente
 
@@ -129,38 +107,3 @@ docker compose exec backend sh -lc 'npx prisma generate'
 - Admin de players:
   - `/admin/players/*`
 
-## Documentação de API para frontend/mobile
-
-Consulte os arquivos em `../docsFront/`:
-
-- [`USER_INSTANCES_API.md`](../docsFront/USER_INSTANCES_API.md)
-- [`USER_TEAM_API.md`](../docsFront/USER_TEAM_API.md)
-- [`USER_BATTLES_API.md`](../docsFront/USER_BATTLES_API.md)
-- [`USER_TRADES_API.md`](../docsFront/USER_TRADES_API.md)
-- [`AD_REWARD_MOBILE.md`](../docsFront/AD_REWARD_MOBILE.md)
-- [`FUEL_PURCHASE_MOBILE.md`](../docsFront/FUEL_PURCHASE_MOBILE.md)
-- [`CARD_SPAWN_COLYSEUS.md`](../docsFront/CARD_SPAWN_COLYSEUS.md)
-- [`COINS_ROOM.md`](../docsFront/COINS_ROOM.md)
-
-## Comandos úteis
-
-Dentro do container `backend`:
-
-```bash
-npm start
-npx prisma db push
-npx prisma generate
-```
-
-No host, sempre prefira:
-
-```bash
-docker compose exec backend sh
-```
-
-## Observações para aula
-
-- O projeto está organizado por `routes` + `services` para separar camada HTTP da regra de negócio.
-- `battleChallenge` guarda snapshots de times para preservar contexto histórico da partida.
-- Assets estáticos (avatars, escudos, fotos) são servidos por rotas Fastify Static.
-- Para alterar schema, atualize `prisma/schema.prisma` e rode `prisma db push` no container.
